@@ -86,7 +86,7 @@ module.exports = require('yargs')
     describe: 'fill to be applied to align numbers',
     type: 'string',
   })
-  .check((argv) => {
+  .check(argv => {
     if (argv.columns <= 0 || !Number.isInteger(argv.columns))
       throw new Error('columns option should be an integer bigger than 0')
     if (argv.base < 2 || argv.base > 36 || !Number.isInteger(argv.base))

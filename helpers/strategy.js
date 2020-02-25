@@ -1,4 +1,4 @@
-function getStrategy(type, bitSize, endianness) {
+module.exports = function (type, bitSize, endianness) {
   typeFormat = () => {
     switch (type) {
       case 'int':
@@ -16,8 +16,5 @@ function getStrategy(type, bitSize, endianness) {
     !['double', 'float'].includes(type) ?
     '' : endianness.toUpperCase()
 
-  const fnName = `read${typeFormat()}${sizeFormat()}${endiannessFormat()}`;
-  return fnName
+  return `read${typeFormat()}${sizeFormat()}${endiannessFormat()}`;
 }
-
-module.exports = getStrategy;
