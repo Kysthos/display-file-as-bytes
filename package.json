@@ -11,5 +11,8 @@
   "license": "ISC",
   "dependencies": {
     "yargs": "^15.1.0"
+  },
+  "engines": {
+    "node": ">=12.16.1"
   }
 }
