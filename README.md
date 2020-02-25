@@ -1,19 +1,31 @@
+`double` and `float` don't work well for now.
+
 ```
 index.js <file> [arg]
 
-display file's byte representation
+Display file's byte representation.
 
 Positionals:
   file  file to display                                                 [string]
 
 Options:
-  -s, --start    file position to start reading            [number] [default: 0]
-  -r, --read     number of bytes to read (null for all) [number] [default: null]
-  -c, --columns  columns to display                       [number] [default: 10]
-  -b, --base     number base to display bytes in (2-36)   [number] [default: 16]
-  -p, --sep      bytes separator                         [string] [default: " "]
-  -h, --help     Show help                                             [boolean]
-  -v, --version  Show version number                                   [boolean]
+  -s, --start       file position to start reading         [number] [default: 0]
+  -r, --read        number of bytes to read (null for all)
+                                                        [number] [default: null]
+  -c, --columns     columns to display                    [number] [default: 10]
+  -b, --base        number base to display bytes in (2-36)[number] [default: 16]
+  -t, --type        type of values
+          [string] [choices: "uint", "int", "double", "float"] [default: "uint"]
+  -o, --bitSize     bit size of values to display
+                                  [number] [choices: 8, 16, 32, 64] [default: 8]
+  -e, --endianness  endianness for >8 bit values
+                                  [string] [choices: "le", "be"] [default: "be"]
+  -p, --separator   bytes separator                      [string] [default: " "]
+  -a, --align       how to align numbers in a column
+                [string] [choices: "left", "right", "center"] [default: "right"]
+  -f, --fill        fill to be applied to align numbers  [string] [default: "0"]
+  -h, --help        Show help                                          [boolean]
+  -v, --version     Show version number                                [boolean]
 ```
 
 Usage example: 
@@ -34,3 +46,13 @@ Usage example:
 00111010   00100000   00100010   01011111
 01100100   01101001   01110011   01110000
 ```
+`node index.js package.json -t int -f ' ' -o 32 -c 5 -r 33`
+```
+7b0a2020  226e616d  65223a20  225f6469  73706c61
+795f6279  74657322  2c0a2020 .........
+```
+
+# TODO
+
+* `double` and `float` still needs to be adjusted.
+* Presets?

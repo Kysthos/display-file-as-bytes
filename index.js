@@ -1,74 +1,44 @@
-  const argv = require('yargs')
-    .command('$0 <file> [arg]',
-      'display file\'s byte representation',
-      yargs => {
-        yargs.positional('file', {
-          describe: 'file to display',
-          type: 'string'
-        })
-      })
-    .option('s', {
-      alias: 'start',
-      demandOption: false,
-      default: 0,
-      describe: 'file position to start reading',
-      type: 'number'
-    })
-    .option('r', {
-      alias: 'read',
-      demandOption: false,
-      default: null,
-      describe: 'number of bytes to read (null for all)',
-      type: 'number'
-    })
-    .option('c', {
-      alias: 'columns',
-      demandOption: false,
-      default: 10,
-      describe: 'columns to display',
-      type: 'number'
-    })
-    .option('b', {
-      alias: 'base',
-      demandOption: false,
-      default: 16,
-      describe: 'number base to display bytes in (2-36)',
-      type: 'number'
-    })
-    .option('p', {
-      alias: 'sep',
-      demandOption: false,
-      default: ' ',
-      describe: 'bytes separator',
-      type: 'string'
-    })
-    .check((argv) => {
-      if (argv.columns <= 0 || !Number.isInteger(argv.columns))
-        throw new Error('columns option should be an integer bigger than 0')
-      if (argv.base < 2 || argv.base > 36 || !Number.isInteger(argv.base))
-        throw new Error('base option should be an integer between 2 and 36')
-      if (argv.start < 0 || !Number.isInteger(argv.start))
-        throw new Error('start option should be an integer bigger than 0')
-      if (argv.read !== null && (argv.read < 1 || !Number.isInteger(argv.read)))
-        throw new Error('read option should be an integer bigger than 0')
-      return true;
-    })
-    .help('help')
-    .alias('h', 'help')
-    .alias('v', 'version')
-    .argv
-
-
+  // get options from yargs
+  const argv = require('./helpers/parseArgs')
   const filePath = argv.file;
-  const bytesSeparator = argv.sep;
+  // string to be written between bytes
+  const bytesSeparator = argv.separator;
   const {
+    // number of columns 
     columns,
+    // number base to use
     base,
-    start
+    // index of the first byte to read
+    start,
+    // endianness to use for the Buffer
+    endianness,
+    // type of the structure [int, uint, double, float]
+    type,
+    // bit size of the structure [8, 16, 32, 64]
+    bitSize,
+    // specifies how numbers should be aligned in a column
+    // [left, center, right]
+    align: alignment,
+    // fill that should be used for the alignment
+    fill
   } = argv;
+  // how many bytes should be read from the file
+  // null for reading till the end of the file
   let bytesToRead = argv.read;
-  const wrapZero = leadingZero();
 
+  // get the function to align numbers in columns
+  const {
+    getAlignment,
+    getLongest
+  } = require('./helpers/alignment');
+  const longestValue = getLongest(type, bitSize, base);
+  const align = getAlignment(alignment, fill, longestValue);
+
+  // get the buffer function to use 
+  const getStrategy = require('./helpers/strategy')
+  const readFn = getStrategy(type, bitSize, endianness);
+
+  // start the main script
   main()
 
   async function main() {
@@ -78,6 +48,7 @@
         stat
       } = require('fs').promises
 
+      // ensure the file is actually a file
       const fileStat = await stat(filePath);
 
       if (!fileStat.isFile())
@@ -85,39 +56,79 @@
 
       const fileSize = fileStat.size;
 
+      // if bytesToRead is null, we want to read the file to the end
+      // adjust bytesToRead if start offset to read and bytesToRead are higher 
+      // than the actual file size
       if (
         bytesToRead === null ||
         fileSize < (start + bytesToRead)
       )
         bytesToRead = fileSize - start;
 
+      // get the file handle
       const file = await open(filePath, 'r');
-      const buf = Buffer.alloc(1);
 
+      // buffer size in bytes
+      const bufferSize = bitSize / 8;
+
+      // bytesToRead must be higher or equal than buffer size
+      // to be able to read requested number type
+      if (bytesToRead < bufferSize) return;
+
+      const buf = Buffer.alloc(bufferSize);
       let position = start;
-      for (let i = 0; i < bytesToRead; i++) {
-        await file.read(buf, 0, 1, position++);
-        process.stdout.write(wrapZero(buf[0].toString(base)));
-        if ((i + 1) % columns === 0) {
+      let iterations = 0;
+
+      // loop through the file
+      for (let i = 0; i < bytesToRead; i += bufferSize) {
+
+        // bytes read will be necessary to check if we can try
+        // to read the requested number from the buffer without 
+        // throwing an error
+        const {
+          bytesRead
+        } = await file.read(buf, 0, bufferSize, position);
+
+        // adjust file position
+        position += bufferSize;
+
+        // if there's not enough bytes to read the requested structure
+        // write a line of trailing full stops and exit
+        if (
+          bytesRead < bufferSize ||
+          i + bufferSize > bytesToRead
+        ) {
+          process.stdout.write('.'.repeat(longestValue) + '\n')
+          return
+        };
+
+        // read converted and aligned number to stdout
+        process.stdout.write(
+          align(
+            buf[readFn]()
+            .toString(base)
+          )
+        );
+
+        // if column end, write a newline
+        // otherwise, write the bytes separator
+        if ((iterations + 1) % columns === 0) {
           process.stdout.write('\n');
         } else {
           process.stdout.write(bytesSeparator);
         }
+        iterations++;
       }
-      if (bytesToRead % columns !== 0)
+
+      // if we didn't end the loop on column end,
+      // write additional newline character
+      if (iterations % columns !== 0)
         process.stdout.write('\n');
 
+      // and finally close the file handle
       await file.close();
 
     } catch (err) {
       console.error(err);
-    }
-  }
-
-  function leadingZero() {
-    const maxWidth = 0xff.toString(base).length;
-    return num => {
-      num = String(num);
-      return `${'0'.repeat(maxWidth - num.length)}${num}`
     }
   }
